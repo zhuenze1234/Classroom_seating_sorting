@@ -34,7 +34,6 @@ class WinGUI(Tk):
         self.tk_label_m8b9lfec = self.__tk_label_m8b9lfec( self.tk_tabs_m8acommq_1)
         self.tk_label_m8b9rtjn = self.__tk_label_m8b9rtjn( self.tk_tabs_m8acommq_1)
         self.tk_input_m8b9sdst = self.__tk_input_m8b9sdst( self.tk_tabs_m8acommq_1)
-        self.tk_button_m8b9siwe = self.__tk_button_m8b9siwe( self.tk_tabs_m8acommq_1)
         self.tk_label_m8beskd6 = self.__tk_label_m8beskd6( self.tk_tabs_m8acommq_1)
         self.tk_label_m8bet2p7 = self.__tk_label_m8bet2p7( self.tk_tabs_m8acommq_1)
         self.tk_input_m8betb1b = self.__tk_input_m8betb1b( self.tk_tabs_m8acommq_1)
@@ -51,8 +50,9 @@ class WinGUI(Tk):
         self.tk_input_m8bga8oi = self.__tk_input_m8bga8oi( self.tk_tabs_m8acommq_1)
         self.tk_label_m8bgafum = self.__tk_label_m8bgafum( self.tk_tabs_m8acommq_1)
         self.tk_button_m8bgba2z = self.__tk_button_m8bgba2z( self.tk_tabs_m8acommq_1)
+        self.tk_label_m8bmucgz = self.__tk_label_m8bmucgz( self.tk_tabs_m8acommq_2)
     def __win(self):
-        self.title("class seating 教室排序助手")
+        self.title("教室排序助手")
         # 设置窗口大小、居中
         width = 600
         height = 500
@@ -126,7 +126,7 @@ class WinGUI(Tk):
             tk_table.heading(text, text=text, anchor='center')
             tk_table.column(text, anchor='center', width=width, stretch=False)  # stretch 不自动拉伸
 
-        tk_table.place(x=0, y=203, width=598, height=228)
+        tk_table.place(x=0, y=204, width=598, height=228)
         return tk_table
     def __tk_label_m8b8r2at(self,parent):
         label = Label(parent,text="作者：朱恩泽",anchor="center", )
@@ -138,7 +138,7 @@ class WinGUI(Tk):
         return label
     def __tk_input_m8b8y7zs(self,parent):
         ipt = Entry(parent, )
-        ipt.place(x=53, y=0, width=150, height=30)
+        ipt.place(x=61, y=0, width=150, height=30)
         return ipt
     def __tk_label_m8b8yc3e(self,parent):
         label = Label(parent,text="种子",anchor="center", )
@@ -146,7 +146,7 @@ class WinGUI(Tk):
         return label
     def __tk_button_m8b8z6uo(self,parent):
         btn = Button(parent, text="随机种子", takefocus=False,)
-        btn.place(x=209, y=0, width=38, height=30)
+        btn.place(x=217, y=0, width=57, height=30)
         return btn
     def __tk_label_m8b9092q(self,parent):
         label = Label(parent,text="线程数",anchor="center", )
@@ -154,11 +154,11 @@ class WinGUI(Tk):
         return label
     def __tk_progressbar_m8b910ks(self,parent):
         progressbar = Progressbar(parent, orient=HORIZONTAL,)
-        progressbar.place(x=0, y=152, width=595, height=30)
+        progressbar.place(x=0, y=153, width=595, height=30)
         return progressbar
     def __tk_label_m8b918w9(self,parent):
         label = Label(parent,text="进度",anchor="center", )
-        label.place(x=274, y=118, width=50, height=30)
+        label.place(x=281, y=114, width=50, height=30)
         return label
     def __tk_scale_m8b91zcg(self,parent):
         scale = Scale(parent, orient=HORIZONTAL, )
@@ -166,19 +166,19 @@ class WinGUI(Tk):
         return scale
     def __tk_input_m8b925pn(self,parent):
         ipt = Entry(parent, )
-        ipt.place(x=140, y=74, width=68, height=30)
+        ipt.place(x=141, y=71, width=68, height=30)
         return ipt
     def __tk_text_m8b930ud(self,parent):
         text = Text(parent)
-        text.place(x=381, y=34, width=217, height=117)
+        text.place(x=378, y=29, width=217, height=117)
         return text
     def __tk_label_m8b937sx(self,parent):
         label = Label(parent,text="日志",anchor="center", )
-        label.place(x=463, y=0, width=50, height=30)
+        label.place(x=465, y=0, width=50, height=20)
         return label
     def __tk_button_m8b9519y(self,parent):
         btn = Button(parent, text="确定", takefocus=False,)
-        btn.place(x=218, y=75, width=50, height=30)
+        btn.place(x=214, y=71, width=50, height=30)
         return btn
     def __tk_button_m8b95daa(self,parent):
         btn = Button(parent, text="开始", takefocus=False,)
@@ -186,7 +186,7 @@ class WinGUI(Tk):
         return btn
     def __tk_input_m8b95r63(self,parent):
         ipt = Entry(parent, )
-        ipt.place(x=194, y=434, width=166, height=30)
+        ipt.place(x=202, y=437, width=166, height=30)
         return ipt
     def __tk_label_m8b95w3k(self,parent):
         label = Label(parent,text="结果保存路径",anchor="center", )
@@ -194,7 +194,7 @@ class WinGUI(Tk):
         return label
     def __tk_button_m8b96nxu(self,parent):
         btn = Button(parent, text="选择", takefocus=False,)
-        btn.place(x=365, y=434, width=50, height=30)
+        btn.place(x=371, y=434, width=50, height=30)
         return btn
     def __tk_button_m8b9721p(self,parent):
         btn = Button(parent, text="确定", takefocus=False,)
@@ -212,25 +212,21 @@ class WinGUI(Tk):
         ipt = Entry(parent, )
         ipt.place(x=332, y=95, width=150, height=30)
         return ipt
-    def __tk_button_m8b9siwe(self,parent):
-        btn = Button(parent, text="确定", takefocus=False,)
-        btn.place(x=484, y=94, width=50, height=30)
-        return btn
     def __tk_label_m8beskd6(self,parent):
         label = Label(parent,text="姓名",anchor="center", )
-        label.place(x=288, y=94, width=50, height=30)
+        label.place(x=277, y=97, width=50, height=30)
         return label
     def __tk_label_m8bet2p7(self,parent):
         label = Label(parent,text="等级",anchor="center", )
-        label.place(x=288, y=179, width=50, height=30)
+        label.place(x=277, y=127, width=50, height=30)
         return label
     def __tk_input_m8betb1b(self,parent):
         ipt = Entry(parent, )
-        ipt.place(x=339, y=178, width=150, height=30)
+        ipt.place(x=332, y=131, width=150, height=30)
         return ipt
     def __tk_button_m8betf3s(self,parent):
         btn = Button(parent, text="确定", takefocus=False,)
-        btn.place(x=488, y=177, width=50, height=30)
+        btn.place(x=366, y=173, width=50, height=30)
         return btn
     def __tk_label_m8betq0p(self,parent):
         label = Label(parent,text="鸣谢：Tkinter布局助手           https://www.pytk.net/",anchor="center", )
@@ -238,7 +234,7 @@ class WinGUI(Tk):
         return label
     def __tk_label_m8bfsdod(self,parent):
         label = Label(parent,text="结果",anchor="center", )
-        label.place(x=274, y=180, width=50, height=30)
+        label.place(x=271, y=182, width=50, height=20)
         return label
     def __tk_label_m8bfvgef(self,parent):
         label = Label(parent,text="注：以上为录入学生",anchor="center", )
@@ -286,6 +282,10 @@ class WinGUI(Tk):
         btn = Button(parent, text="选择", takefocus=False,)
         btn.place(x=456, y=444, width=50, height=30)
         return btn
+    def __tk_label_m8bmucgz(self,parent):
+        label = Label(parent,text="这是我为了参加比赛做的一个小东西，一共才用了一天，可能不太好，请谅解",anchor="center", )
+        label.place(x=0, y=300, width=596, height=30)
+        return label
 class Win(WinGUI):
     def __init__(self, controller):
         self.ctl = controller

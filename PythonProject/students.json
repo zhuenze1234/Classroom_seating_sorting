@@ -1,6 +1,6 @@
 [
     {"name": "Alice", "type": 1},
     {"name": "Bob", "type": -1},
-    {"name": "Charlie", "type": -2},
+    {"name": "Charlie", "type": 0},
     {"name": "David", "type": 0}
 ]
