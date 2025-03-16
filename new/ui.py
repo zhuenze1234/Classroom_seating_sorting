@@ -51,6 +51,8 @@ class WinGUI(Tk):
         self.tk_label_m8bgafum = self.__tk_label_m8bgafum( self.tk_tabs_m8acommq_1)
         self.tk_button_m8bgba2z = self.__tk_button_m8bgba2z( self.tk_tabs_m8acommq_1)
         self.tk_label_m8bmucgz = self.__tk_label_m8bmucgz( self.tk_tabs_m8acommq_2)
+        self.tk_button_save = self.__tk_button_save_students(self.tk_tabs_m8acommq_1)
+
     def __win(self):
         self.title("教室排序助手")
         # 设置窗口大小、居中
@@ -147,6 +149,10 @@ class WinGUI(Tk):
     def __tk_button_m8b8z6uo(self,parent):
         btn = Button(parent, text="随机种子", takefocus=False,)
         btn.place(x=217, y=0, width=57, height=30)
+        return btn
+    def __tk_button_save_students(self, parent):
+        btn = Button(parent, text="保存学生", takefocus=False)
+        btn.place(x=200, y=440, width=80, height=30)
         return btn
     def __tk_label_m8b9092q(self,parent):
         label = Label(parent,text="线程数",anchor="center", )

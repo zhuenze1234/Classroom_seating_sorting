@@ -36,7 +36,8 @@ class Controller:
             (self.ui.tk_button_m8b96nxu, self.select_output_path),
             (self.ui.tk_button_m8b9721p, self.export_result),
             (self.ui.tk_button_m8betf3s, self.add_student),
-            (self.ui.tk_button_m8bgba2z, self.import_json)
+            (self.ui.tk_button_m8bgba2z, self.import_json),
+            (self.ui.tk_button_save, self.save_students)
         ]
         for widget, callback in event_map:
             widget.config(command=callback)
@@ -384,3 +385,20 @@ class Controller:
             self.ui.tk_table_m8awzxkt.insert("", "end",
                                              text=f"行 {row_idx}",
                                              values=values)
+
+    def save_students(self):
+        """保存学生数据"""
+        filepath = filedialog.asksaveasfilename(
+            defaultextension=".json",
+            filetypes=[("JSON文件", "*.json"), ("所有文件", "*.*")]
+        )
+        if filepath:
+            try:
+                data = [dict(name=s['name'], type=s['type']) for s in self.service.students]
+                with open(filepath, 'w', encoding='utf-8') as f:
+                    json.dump(data, f, ensure_ascii=False, indent=2)
+                messagebox.showinfo("保存成功", "学生数据已保存")
+                self.log(f"数据已保存至：{filepath}")
+            except Exception as e:
+                messagebox.showerror("保存失败", str(e))
+                self.log(f"保存错误：{str(e)}")

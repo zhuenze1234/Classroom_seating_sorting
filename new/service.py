@@ -188,6 +188,15 @@ class ClassroomService:
                     neighbors.append(layout[x,y])
         return neighbors
 
+    def get_layout_preview(self, layout):
+        """生成表格预览数据"""
+        preview = []
+        for row_idx, row in enumerate(layout):
+            preview_row = {f"列{i + 1}": seat['name'] if seat else "" for i, seat in enumerate(row)}
+            preview_row["行"] = f"第{row_idx + 1}排"
+            preview.append(preview_row)
+        return preview
+
 class ServiceError(Exception):
     """自定义服务异常"""
     pass
