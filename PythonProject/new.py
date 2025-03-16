@@ -8,9 +8,9 @@ import pandas as pd
 
 
 class ClassroomArranger:
-    def __init__(self, student_file):
+    def __init__(self, student_file="students.json"):
         self.student_file = student_file
-        self.students = self.load_or_create_students()  # 这里调用了方法
+        self.students = self.load_or_create_students()
         self.n = len(self.students)
         self.rows, self.cols = self.calculate_layout()
         self.found_event = threading.Event()
@@ -21,7 +21,6 @@ class ClassroomArranger:
         self.attempts = 0
         self.progress = None
 
-    # 新增的完整方法实现
     def load_or_create_students(self):
         """加载或创建学生数据文件"""
         if not os.path.exists(self.student_file):
@@ -36,9 +35,13 @@ class ClassroomArranger:
     def create_student_file(self):
         """交互式创建学生文件"""
         students = []
-        print(f"{self.student_file} 文件不存在，请手动输入学生信息：")
+        print(f"\n{'=' * 30}")
+        print(f" {self.student_file} 文件不存在")
+        print(f"{'=' * 30}")
+        print("请按以下格式输入学生信息：")
+
         while True:
-            name = input("学生姓名（直接回车结束输入）: ").strip()
+            name = input("\n学生姓名（直接回车结束输入）: ").strip()
             if not name:
                 if len(students) == 0:
                     print("至少需要输入一个学生！")
@@ -58,14 +61,18 @@ class ClassroomArranger:
 
         with open(self.student_file, 'w') as f:
             json.dump(students, f, indent=2)
-        print(f"学生信息已保存至 {self.student_file}")
+        print(f"\n✅ 学生信息已保存至 {self.student_file}")
 
-    # 其他方法保持不变...
-    # [保持原有 calculate_layout、check_partial 等方法不变]
-    # ...
+    def calculate_layout(self):
+        """计算教室行列布局"""
+        sqrt = int(self.n ** 0.5)
+        for i in range(sqrt, 0, -1):
+            if self.n % i == 0:
+                return i, self.n // i
+        return 1, self.n
 
     def check_partial(self, grid, row, col):
-        """逐步检查当前座位是否有效"""
+        """逐步检查当前座位有效性"""
         student = grid[row][col]
         if not student:
             return True
@@ -104,7 +111,7 @@ class ClassroomArranger:
         return True
 
     def generate_and_validate(self, seed):
-        """生成并逐步验证排列"""
+        """生成并验证排列"""
         random.seed(seed)
         shuffled = random.sample(self.students, self.n)
 
@@ -114,16 +121,16 @@ class ClassroomArranger:
         for i in range(self.rows):
             for j in range(self.cols):
                 if idx >= self.n:
-                    return grid  # 允许有空座位
+                    return grid
 
                 grid[i][j] = shuffled[idx]
                 if not self.check_partial(grid, i, j):
-                    return None  # 立即终止无效排列
+                    return None
                 idx += 1
         return grid
 
     def worker(self):
-        """工作线程函数（改进版）"""
+        """工作线程"""
         while not self.found_event.is_set():
             with self.lock:
                 if self.attempts >= self.max_attempts:
@@ -140,8 +147,14 @@ class ClassroomArranger:
                         self.found_event.set()
 
     def find_arrangement(self, thread_num=4):
-        """带进度条的主算法"""
-        self.progress = tqdm(total=self.max_attempts, desc="正在搜索排列")
+        """主运行方法"""
+        print(f"\n教室布局: {self.rows}行×{self.cols}列")
+        print(f"学生总数: {self.n}")
+        print(f"最大尝试次数: {self.max_attempts}\n")
+
+        self.progress = tqdm(total=self.max_attempts,
+                             desc="正在搜索有效排列",
+                             bar_format="{l_bar}{bar}| {n_fmt}/{total_fmt} [用时:{elapsed}<剩余:{remaining}]")
 
         threads = []
         for _ in range(thread_num):
@@ -150,112 +163,50 @@ class ClassroomArranger:
             threads.append(t)
             t.start()
 
-        # 进度更新线程
-        def update_progress():
-            while not self.found_event.is_set() and self.attempts < self.max_attempts:
-                self.progress.n = self.attempts
-                self.progress.refresh()
-                time.sleep(0.1)
+        # 进度更新
+        last_attempts = 0
+        while not self.found_event.is_set() and self.attempts < self.max_attempts:
+            time.sleep(0.3)
+            with self.lock:
+                current = self.attempts
+            self.progress.update(current - last_attempts)
+            last_attempts = current
 
-        progress_thread = threading.Thread(target=update_progress)
-        progress_thread.start()
-
-        self.found_event.wait()
+        self.found_event.set()
+        for t in threads:
+            t.join(timeout=0.1)
         self.progress.close()
 
-        # 清理线程
-        for t in threads:
-            t.join(timeout=0.1)
-        progress_thread.join()
-    def calculate_layout(self):
-        sqrt = int(self.n ** 0.5)
-        for i in range(sqrt, 0, -1):
-            if self.n % i == 0:
-                return i, self.n // i
-        return 1, self.n
-
-    def is_valid(self, grid):
-        for i in range(self.rows):
-            for j in range(self.cols):
-                student = grid[i][j]
-                if not student:
-                    continue
-
-                # 检查好学生是否能管理坏学生
-                if student['type'] < 0:
-                    has_good = False
-                    for dx in (-1, 0, 1):
-                        for dy in (-1, 0, 1):
-                            x, y = i + dx, j + dy
-                            if 0 <= x < self.rows and 0 <= y < self.cols:
-                                neighbor = grid[x][y]
-                                if neighbor and neighbor['type'] == 1:
-                                    has_good = True
-                                    break
-                        if has_good:
-                            break
-                    if not has_good:
-                        return False
-
-                # 检查坏学生相邻规则
-                if student['type'] == -1:
-                    for dx, dy in [(-1, 0), (1, 0), (0, -1), (0, 1)]:
-                        x, y = i + dx, j + dy
-                        if 0 <= x < self.rows and 0 <= y < self.cols:
-                            neighbor = grid[x][y]
-                            if neighbor and neighbor['type'] < 0:
-                                return False
-                elif student['type'] == -2:
-                    for dx in (-1, 0, 1):
-                        for dy in (-1, 0, 1):
-                            if dx == 0 and dy == 0:
-                                continue
-                            x, y = i + dx, j + dy
-                            if 0 <= x < self.rows and 0 <= y < self.cols:
-                                neighbor = grid[x][y]
-                                if neighbor and neighbor['type'] < 0:
-                                    return False
-        return True
-
-    def generate_arrangement(self, seed):
-        random.seed(seed)
-        shuffled = random.sample(self.students, self.n)
-        return [shuffled[i * self.cols: (i + 1) * self.cols] for i in range(self.rows)]
-        # 等待第一个完成的结果
-        self.found_event.wait()
-
-        # 终止其他线程
-        for t in threads:
-            t.join(timeout=0.1)
-
-    def export_excel(self, filename):
+    def export_excel(self, filename="座位表.xlsx"):
+        """导出Excel文件"""
         if not self.result:
             raise ValueError("没有找到有效排列")
 
-        df = pd.DataFrame(
-            [[f"{cell['name']}({cell['type']})" if cell else ""
-              for cell in row]
-             for row in self.result],
-            columns=[f"座位{i + 1}" for i in range(self.cols)]
-        )
-        df.to_excel(filename, index=False)
-        print(f"结果已导出到 {filename}")
+        data = []
+        for row in self.result:
+            data_row = []
+            for student in row:
+                if student:
+                    data_row.append(f"{student['name']} ({student['type']})")
+                else:
+                    data_row.append("空座位")
+            data.append(data_row)
 
-
-
-
+        df = pd.DataFrame(data, columns=[f"第{i + 1}列" for i in range(self.cols)])
+        df.index = [f"第{i + 1}行" for i in range(self.rows)]
+        df.to_excel(filename, engine='openpyxl')
+        print(f"\n✅ 座位表已保存到 {os.path.abspath(filename)}")
 
 
 if __name__ == "__main__":
     try:
-        arranger = ClassroomArranger("students.json")
-        print(f"共{arranger.n}名学生，最大尝试次数：{arranger.max_attempts}")
-        arranger.find_arrangement()
+        arranger = ClassroomArranger()
+        arranger.find_arrangement(thread_num=4)
 
         if arranger.result:
-            arranger.export_excel("arrangement.xlsx")
-            print(f"成功找到有效排列，种子号：{arranger.seed}")
+            arranger.export_excel()
+            print(f"成功种子号: {arranger.seed}")
         else:
-            print(f"在{arranger.max_attempts}次尝试后未找到有效排列")
+            print("\n⚠️ 未找到有效排列，建议调整学生类型后重试")
     except Exception as e:
-        print(f"发生错误：{str(e)}")
+        print(f"\n❌ 发生错误: {str(e)}")
