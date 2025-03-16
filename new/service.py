@@ -103,6 +103,7 @@ class ClassroomService:
             total = len(students)
             size = math.ceil(math.sqrt(total))
 
+
             log_callback(f"创建{size}x{size}的座位布局")
             layout = np.full((size, size), None, dtype=object)
 
