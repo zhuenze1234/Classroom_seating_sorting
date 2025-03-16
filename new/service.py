@@ -4,6 +4,7 @@ import random
 import numpy as np
 from threading import Event
 from itertools import permutations
+import math
 
 class ClassroomService:
     def __init__(self):
@@ -11,6 +12,25 @@ class ClassroomService:
         self.current_result = None
         self.stop_event = Event()
 
+    def calculate_layout_size(self, student_count):
+        """智能计算最小合适布局尺寸"""
+        if student_count == 0:
+            return 0, 0
+
+        # 寻找最接近正方形的布局
+        min_size = math.ceil(math.sqrt(student_count))
+
+        # 优先选择接近黄金分割的比例
+        candidates = []
+        for w in range(min_size, min_size + 3):
+            for h in range(min_size, min_size + 3):
+                if w * h >= student_count:
+                    ratio = max(w / h, h / w)
+                    candidates.append((ratio, w, h))
+
+        # 选择最接近1:1的比例
+        candidates.sort()
+        return candidates[0][1], candidates[0][2]
     # 学生管理方法
     def add_student(self, name, student_type):
         """添加学生验证（增强版）"""
@@ -48,6 +68,19 @@ class ClassroomService:
         except Exception as e:
             raise ValueError(f"加载失败：{str(e)}")
 
+    def _convert_to_seating_chart(self, layout):
+        """转换布局为行列结构"""
+        chart = []
+        for row in layout:
+            chart_row = []
+            for seat in row:
+                chart_row.append({
+                    'name': seat['name'] if seat else "空",
+                    'type': seat['type'] if seat else None
+                })
+            chart.append(chart_row)
+        return chart
+
     # 核心排列算法
     def arrange(self, seed, thread_num, progress_callback, log_callback):
         """优化后的排列算法"""
@@ -68,9 +101,7 @@ class ClassroomService:
 
             # 动态计算布局尺寸
             total = len(students)
-            size = int(total ** 0.5) + 1
-            if size * size < total:
-                size += 1
+            size = math.ceil(math.sqrt(total))
 
             log_callback(f"创建{size}x{size}的座位布局")
             layout = np.full((size, size), None, dtype=object)
@@ -106,7 +137,10 @@ class ClassroomService:
                         total_steps +=1
                         progress_callback(total_steps/(size*size)*100)
 
-            return {'seed': seed, 'layout': layout.tolist()}
+            return {
+                'seed': seed,
+                'layout': self._convert_to_seating_chart(layout)
+            }
 
         except Exception as e:
             raise RuntimeError(f"排列失败: {str(e)}")

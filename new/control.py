@@ -6,6 +6,8 @@ from service import ClassroomService, ServiceError
 import json
 import random
 import os
+from pathlib import Path
+
 
 class Controller:
     def __init__(self):
@@ -14,6 +16,8 @@ class Controller:
         self.ui = None
         self.config_file = "app_config.json"
         self.load_config()
+        self.last_opened_dir = str(Path.home())
+        self._load_config()
 
     def init(self, ui):
         """初始化控制器"""
@@ -56,6 +60,26 @@ class Controller:
                 self._type_to_text(student['type'])
             ))
 
+    def _load_config(self):
+        """加载应用程序配置"""
+        try:
+            if Path(self.CONFIG_FILE).exists():
+                with open(self.CONFIG_FILE, 'r') as f:
+                    config = json.load(f)
+                    self.last_opened_dir = config.get('last_opened_dir', str(Path.home()))
+        except Exception as e:
+            print(f"加载配置失败: {str(e)}")
+
+        def _save_config(self):
+            """保存应用程序配置"""
+            config = {
+                'last_opened_dir': self.last_opened_dir
+            }
+            try:
+                with open(self.CONFIG_FILE, 'w') as f:
+                    json.dump(config, f)
+            except Exception as e:
+                print(f"保存配置失败: {str(e)}")
     def _type_to_text(self, t):
         type_map = {
             1: "好学生", 0: "普通学生",
@@ -72,8 +96,13 @@ class Controller:
         )
 
     def _validate_seed(self, value, max_seed):
+        """类型安全的验证方法"""
         try:
-            return 0 <= int(value) <= max_seed if value else True
+            max_seed = int(max_seed)  # 确保转换为整数
+            if value == "":
+                return True
+            input_val = int(value)
+            return 0 <= input_val <= max_seed
         except ValueError:
             return False
 
@@ -182,16 +211,15 @@ class Controller:
 
     # 其他功能
     def import_json(self):
-        """改进的导入方法"""
-        initialdir = os.path.dirname(self.last_opened_file) if self.last_opened_file else None
+        """改进后的文件选择对话框"""
         filepath = filedialog.askopenfilename(
-            initialdir=initialdir,
+            initialdir=self.last_opened_dir,
             filetypes=[("JSON文件", "*.json")],
             title="选择学生数据文件"
         )
         if filepath:
-            self.last_opened_file = filepath
-            self.save_config()
+            self.last_opened_dir = str(Path(filepath).parent)
+            self._save_config()
             try:
                 self.service.load_from_json(filepath)
                 self.load_student_table()
@@ -303,3 +331,56 @@ class Controller:
             messagebox.showinfo("成功", f"文件已保存到：{path}")
         except Exception as e:
             messagebox.showerror("错误", f"导出失败：{str(e)}")
+
+    def _load_config(self):
+        """加载用户配置"""
+        self.config_path = "app_config.json"
+        try:
+            with open(self.config_path, 'r') as f:
+                self.config = json.load(f)
+        except:
+            self.config = {"last_open_path": "", "last_save_path": ""}
+
+    def _save_config(self):
+        """保存用户配置"""
+        with open(self.config_path, 'w') as f:
+            json.dump(self.config, f)
+
+    def export_student_data(self):
+        """导出学生信息"""
+        filepath = filedialog.asksaveasfilename(
+            filetypes=[("JSON文件", "*.json")],
+            title="保存学生数据",
+            initialdir=self.config.get("last_save_path", "")
+        )
+        if filepath:
+            try:
+                with open(filepath, 'w', encoding='utf-8') as f:
+                    json.dump(self.service.students, f, ensure_ascii=False)
+                self.config["last_save_path"] = os.path.dirname(filepath)
+                self._save_config()
+                messagebox.showinfo("保存成功", "学生数据已保存")
+            except Exception as e:
+                messagebox.showerror("保存失败", str(e))
+
+    def show_layout_preview(self, layout_data):
+        """在表格中显示布局结果"""
+        # 清空表格
+        for item in self.ui.tk_table_m8awzxkt.get_children():
+            self.ui.tk_table_m8awzxkt.delete(item)
+
+        # 设置列头
+        columns = [f"列 {i + 1}" for i in range(len(layout_data[0]))]
+        self.ui.tk_table_m8awzxkt["columns"] = columns
+        self.ui.tk_table_m8awzxkt.heading("#0", text="行号", anchor='center')
+
+        for col in columns:
+            self.ui.tk_table_m8awzxkt.heading(col, text=col, anchor='center')
+            self.ui.tk_table_m8awzxkt.column(col, width=80, anchor='center')
+
+        # 填充数据
+        for row_idx, row in enumerate(layout_data, 1):
+            values = [f"{s['name']}({s['type']})" if s else "" for s in row]
+            self.ui.tk_table_m8awzxkt.insert("", "end",
+                                             text=f"行 {row_idx}",
+                                             values=values)
