@@ -1,16 +1,19 @@
 # service.py
-import json
-import random
-import numpy as np
-from threading import Event
-from itertools import permutations
 import math
+import random
+import json
+import numpy as np
+from threading import Event, Lock
+from itertools import permutations, islice
+from queue import Queue
 
 class ClassroomService:
     def __init__(self):
         self.students = []
         self.current_result = None
         self.stop_event = Event()
+        self.best_solution = None
+        self.solution_lock = Lock()  # 修正：导入Lock类
 
     def calculate_layout_size(self, student_count):
         """智能计算最小合适布局尺寸"""
@@ -83,70 +86,99 @@ class ClassroomService:
 
     # 核心排列算法
     def arrange(self, seed, thread_num, progress_callback, log_callback):
-        """优化后的排列算法"""
+        """优化后的穷举算法"""
         self.stop_event.clear()
         try:
-            if not self.students:
+            students = self.students.copy()
+            n = len(students)
+            if n == 0:
                 raise ValueError("没有可排列的学生数据")
 
-            # 初始化随机种子
-            random.seed(seed)
-            students = self.students.copy()
-            total_steps = 0
+            # 计算布局尺寸
+            size = math.ceil(math.sqrt(n))
+            total_seats = size * size
+            required_empty = total_seats - n
 
-            # 学生分类
-            good_students = [s for s in students if s['type'] == 1]
-            normal_students = [s for s in students if s['type'] == 0]
-            bad_students = [s for s in students if s['type'] in (-1, -2)]
+            # 生成所有可能的空座位组合
+            all_positions = list(range(total_seats))
+            empty_positions = set()
 
-            # 动态计算布局尺寸
-            total = len(students)
-            size = math.ceil(math.sqrt(total))
+            # 创建任务队列
+            task_queue = Queue()
+            batch_size = 1000
 
+            # 生成排列批次
+            def generate_permutations():
+                while not self.stop_event.is_set():
+                    # 随机生成空座位组合
+                    empty = set(random.sample(all_positions, required_empty))
+                    if empty not in empty_positions:
+                        empty_positions.add(frozenset(empty))
+                        yield empty
 
-            log_callback(f"创建{size}x{size}的座位布局")
-            layout = np.full((size, size), None, dtype=object)
+                    # 随机打乱学生顺序
+                    shuffled = random.sample(students, n)
+                    yield shuffled
 
-            # 先放置问题学生
-            for student in [s for s in bad_students if s['type'] == -2]:
-                pos = self._find_valid_position(layout, size, student)
-                layout[pos] = student
-                total_steps +=1
-                progress_callback(total_steps/(size*size)*100)
+            # 创建工作线程
+            workers = []
+            for _ in range(thread_num):
+                t = threading.Thread(
+                    target=self._arrangement_worker,
+                    args=(generate_permutations(), size, progress_callback),
+                    daemon=True
+                )
+                workers.append(t)
+                t.start()
 
-            for student in [s for s in bad_students if s['type'] == -1]:
-                pos = self._find_valid_position(layout, size, student)
-                layout[pos] = student
-                total_steps +=1
-                progress_callback(total_steps/(size*size)*100)
+            # 等待结果
+            while not self.stop_event.is_set():
+                if self.best_solution:
+                    self.stop_event.set()
+                    break
+                time.sleep(0.1)
 
-            # 放置好学生
-            for student in good_students:
-                pos = self._place_good_student(layout, size)
-                layout[pos] = student
-                total_steps +=1
-                progress_callback(total_steps/(size*size)*100)
+            # 清理线程
+            for t in workers:
+                t.join()
 
-            # 填充剩余学生
-            remaining = [s for s in students if s not in layout.flatten()]
-            for i in range(size):
-                for j in range(size):
-                    if self.stop_event.is_set():
-                        return None
-                    if layout[i,j] is None and remaining:
-                        layout[i,j] = remaining.pop()
-                        total_steps +=1
-                        progress_callback(total_steps/(size*size)*100)
-
-            return {
-                'seed': seed,
-                'layout': self._convert_to_seating_chart(layout)
-            }
+            return self.best_solution
 
         except Exception as e:
-            raise RuntimeError(f"排列失败: {str(e)}")
+            raise ServiceError(f"排列失败: {str(e)}")
         finally:
             self.stop_event.set()
+
+    def _arrangement_worker(self, permutation_generator, size, progress_callback):
+        """工作线程处理函数"""
+        try:
+            for attempt, candidates in enumerate(permutation_generator):
+                if self.stop_event.is_set():
+                    return
+
+                # 生成布局
+                if isinstance(candidates, set):  # 处理空座位
+                    layout = self._create_layout_with_empty(size, candidates)
+                else:  # 处理学生排列
+                    layout = self._arrange_students(candidates, size)
+
+                # 验证布局
+                if self._validate_full_layout(layout):
+                    with self.solution_lock:
+                        if not self.best_solution:
+                            self.best_solution = {
+                                'seed': random.randint(0, 2 ** 32),
+                                'layout': self._convert_to_seating_chart(layout)
+                            }
+                            self.stop_event.set()
+                    return
+
+                # 更新进度
+                if attempt % 100 == 0:
+                    progress_callback(min(attempt / 1000 * 100, 99))
+
+        except Exception as e:
+            print(f"工作线程错误: {str(e)}")
 
     # 辅助方法
     def _find_valid_position(self, layout, size, student):
@@ -196,6 +228,77 @@ class ClassroomService:
             preview_row["行"] = f"第{row_idx + 1}排"
             preview.append(preview_row)
         return preview
+
+    def _create_layout_with_empty(self, size, empty_positions):
+        """创建带空座位的布局"""
+        layout = np.full((size, size), None, dtype=object)
+        for pos in empty_positions:
+            row = pos // size
+            col = pos % size
+            layout[row][col] = {'name': '空座位', 'type': None}
+        return layout
+
+    def _arrange_students(self, students, size):
+        """将学生填入布局"""
+        layout = np.full((size, size), None, dtype=object)
+        student_iter = iter(students)
+        for i in range(size):
+            for j in range(size):
+                if layout[i][j] is None:
+                    try:
+                        layout[i][j] = next(student_iter)
+                    except StopIteration:
+                        pass
+        return layout
+
+    def _validate_full_layout(self, layout):
+        """完整验证布局"""
+        size = layout.shape[0]
+        for i in range(size):
+            for j in range(size):
+                student = layout[i][j]
+                if student and student['type'] is not None:
+                    if not self._validate_student(layout, i, j):
+                        return False
+        return True
+
+    def _validate_student(self, layout, row, col):
+        """验证单个学生位置"""
+        student = layout[row][col]
+        if student['type'] < 0:
+            # 检查附近是否有同类型学生
+            neighbors = self._get_neighbors(layout, row, col,
+                                            distance=2 if student['type'] == -2 else 1)
+            if any(n and n['type'] == student['type'] for n in neighbors):
+                return False
+
+            # 检查是否有好学生管理
+            if student['type'] == -2:
+                has_good = any(n and n['type'] == 1 for n in neighbors)
+                if not has_good:
+                    return False
+        return True
+
+    def _get_neighbors(self, layout, row, col, distance=1):
+        """获取周围邻居（优化版）"""
+        size = layout.shape[0]
+        neighbors = []
+        for dx in range(-distance, distance + 1):
+            for dy in range(-distance, distance + 1):
+                if dx == 0 and dy == 0:
+                    continue
+                x, y = row + dx, col + dy
+                if 0 <= x < size and 0 <= y < size:
+                    neighbors.append(layout[x][y])
+        return neighbors
+
+    def get_max_seed(self):
+        """安全计算排列数"""
+        n = len(self.students)
+        try:
+            return math.factorial(n)
+        except OverflowError:
+            return None
 
 class ServiceError(Exception):
     """自定义服务异常"""

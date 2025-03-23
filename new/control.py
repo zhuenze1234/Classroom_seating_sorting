@@ -1,12 +1,16 @@
 # control.py
+import json
+import math
+import os
+import random
 import threading
 import time
-from tkinter import messagebox, filedialog
-from service import ClassroomService, ServiceError
-import json
-import random
-import os
 from pathlib import Path
+from tkinter import messagebox, filedialog
+
+import pandas as pd
+
+from service import ClassroomService
 
 
 class Controller:
@@ -90,31 +94,46 @@ class Controller:
 
     # 种子管理
     def _update_seed_limit(self):
-        max_seed = max(len(self.service.students), 1)
-        self.ui.tk_input_m8b8y7zs.config(
-            validate="key",
-            validatecommand=(self.ui.register(self._validate_seed), '%P', max_seed)
-        )
+        """更新种子范围为n!"""
+        n = len(self.service.students)
+        try:
+            max_seed = math.factorial(n) if n > 0 else 1
+            self.ui.tk_input_m8b8y7zs.config(
+                validate="key",
+                validatecommand=(self.ui.register(self._validate_seed), '%P', max_seed)
+            )
+        except OverflowError:
+            # 处理超过计算范围的情况
+            self.log("警告：学生数量过多，已启用随机模式")
+            self.ui.tk_input_m8b8y7zs.config(validate='none')
 
     def _validate_seed(self, value, max_seed):
-        """类型安全的验证方法"""
+        """验证种子输入"""
         try:
-            max_seed = int(max_seed)  # 确保转换为整数
-            if value == "":
-                return True
+            max_seed = int(max_seed)
+            if value == "": return True
             input_val = int(value)
-            return 0 <= input_val <= max_seed
-        except ValueError:
+            return 0 <= input_val < max_seed
+        except:
             return False
 
     def generate_random_seed(self):
-        if not self.service.students:
+        """生成随机种子（基于n!）"""
+        n = len(self.service.students)
+        if n == 0:
             messagebox.showwarning("提示", "请先添加学生")
             return
-        max_seed = len(self.service.students)
-        seed = random.randint(0, max_seed)
-        self.ui.tk_input_m8b8y7zs.delete(0, 'end')
-        self.ui.tk_input_m8b8y7zs.insert(0, str(seed))
+
+        try:
+            max_seed = math.factorial(n)
+            seed = random.randint(0, max_seed - 1)
+            self.ui.tk_input_m8b8y7zs.delete(0, 'end')
+            self.ui.tk_input_m8b8y7zs.insert(0, str(seed))
+        except OverflowError:
+            self.log("学生数量过多，使用系统随机种子")
+            seed = random.getrandbits(128)
+            self.ui.tk_input_m8b8y7zs.delete(0, 'end')
+            self.ui.tk_input_m8b8y7zs.insert(0, str(seed))
 
     # 核心业务逻辑
     def toggle_arrangement(self):
@@ -124,7 +143,19 @@ class Controller:
             self.start_arrangement()
 
     def start_arrangement(self):
+
+        """添加大数验证"""
+        n = len(self.service.students)
+        if n > 10:
+            if not messagebox.askyesno("确认",
+                                       "10人以上排列可能需要较长时间，是否继续？"):
+                return
+
         try:
+            max_seed = self.service.get_max_seed()
+            if max_seed is None:
+                messagebox.showwarning("警告",
+                                       "学生数量过多，将使用系统随机种子")
             params = self._validate_params()
             self.running = True
             self.ui.tk_button_m8b95daa.config(text="停止")
@@ -140,6 +171,7 @@ class Controller:
             messagebox.showerror("参数错误", str(e))
 
     def _validate_params(self):
+        global max_seed
         params = {}
         if not self.service.students:
             raise ValueError("请先添加学生数据")
@@ -186,29 +218,31 @@ class Controller:
             self._update_progress(100)
 
     def _show_result(self, result):
-        """显示结果到表格"""
-        # 清空原有数据
-        for item in self.ui.tk_table_m8awzxkt.get_children():
-            self.ui.tk_table_m8awzxkt.delete(item)
-
-        # 获取布局数据
+        """优化结果显示"""
         layout = result['layout']
 
-        # 添加表头
-        columns = [str(i+1) for i in range(len(layout[0]))] + ["行/列"]
+        # 清空原有数据
+        self.ui.tk_table_m8awzxkt.delete(*self.ui.tk_table_m8awzxkt.get_children())
+
+        # 动态生成列
+        columns = [f"列{i + 1}" for i in range(len(layout[0]))] + ["行"]
         self.ui.tk_table_m8awzxkt["columns"] = columns
+
+        # 设置列格式
         for col in columns:
-            self.ui.tk_table_m8awzxkt.heading(col, text=col)
+            self.ui.tk_table_m8awzxkt.heading(col, text=col, anchor='center')
+            self.ui.tk_table_m8awzxkt.column(col, width=80, anchor='center')
 
         # 填充数据
         for row_idx, row in enumerate(layout):
-            values = [""] * len(columns)
-            for col_idx, seat in enumerate(row):
-                if seat:
-                    values[col_idx] = f"{seat['name']}({seat['type']})"
-            values[-1] = f"第{row_idx+1}行"
+            values = []
+            for seat in row:
+                if seat and seat['name'] != '空座位':
+                    values.append(f"{seat['name']}({self._type_to_text(seat['type'])})")
+                else:
+                    values.append("")
+            values.append(f"第{row_idx + 1}行")
             self.ui.tk_table_m8awzxkt.insert("", "end", values=values)
-
 
     # 其他功能
     def import_json(self):
@@ -322,16 +356,41 @@ class Controller:
             self.ui.tk_input_m8b95r63.insert(0, path)
 
     def export_result(self):
-        if not hasattr(self.service, 'current_result') or not self.service.current_result:
+        """改进的Excel导出"""
+        if not self.service.current_result:
             messagebox.showwarning("警告", "没有可导出的结果")
             return
 
         path = self.ui.tk_input_m8b95r63.get()
         try:
-            # 实现导出逻辑
+            # 获取布局数据
+            layout = self.service.current_result['layout']
+
+            # 创建DataFrame
+            data = []
+            max_cols = max(len(row) for row in layout)
+            columns = [f"列{i + 1}" for i in range(max_cols)]
+
+            for row_idx, row in enumerate(layout, 1):
+                row_data = {"行": f"第{row_idx}排"}
+                for col_idx, seat in enumerate(row, 1):
+                    if seat and seat['name'] != '空座位':
+                        row_data[f"列{col_idx}"] = f"{seat['name']}({self._type_to_text(seat['type'])})"
+                    else:
+                        row_data[f"列{col_idx}"] = ""
+                data.append(row_data)
+
+            df = pd.DataFrame(data).fillna("")
+            df.set_index("行", inplace=True)
+
+            # 导出Excel
+            df.to_excel(path, engine='openpyxl')
+
             messagebox.showinfo("成功", f"文件已保存到：{path}")
+            self.log(f"成功导出结果到：{path}")
         except Exception as e:
             messagebox.showerror("错误", f"导出失败：{str(e)}")
+            self.log(f"导出错误：{str(e)}")
 
     def _load_config(self):
         """加载用户配置"""
